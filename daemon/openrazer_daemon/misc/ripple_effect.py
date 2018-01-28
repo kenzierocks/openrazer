@@ -30,7 +30,7 @@ class RippleEffectThread(threading.Thread):
         self._shutdown = False
         self._active = False
 
-        self._kerboard_grid = KeyboardColour()
+        self._keyboard_grid = KeyboardColour()
 
     @property
     def shutdown(self):
@@ -100,11 +100,19 @@ class RippleEffectThread(threading.Thread):
         # pylint: disable=too-many-nested-blocks,too-many-branches
         expire_diff = datetime.timedelta(seconds=2)
 
+        # self._parent: RippleManager
+        # self._parent._parent: The device class (e.g. RazerBlackWidowUltimate2013)
+        matrixdims = self._parent._parent.MATRIX_DIMS
+        needslogohandling = False
+        if matrixdims == [6, 22]:
+            needslogohandling = True
+            matrixdims[0] = matrixdims[0] + 1  # a virtual 7th row for logo handling
+
         # TODO time execution and then sleep for _refresh_rate - time_taken
         while not self._shutdown:
             if self._active:
                 # Clear keyboard
-                self._kerboard_grid.reset_rows()
+                self._keyboard_grid.reset_rows()
 
                 now = datetime.datetime.now()
 
@@ -120,32 +128,40 @@ class RippleEffectThread(threading.Thread):
                         colour = self._colour
                     radiuses.append((key_row, key_col, now_diff.total_seconds() * 12, colour))
 
-                for row in range(0, 7):
-                    for col in range(0, 22):
-                        if row == 0 and col == 20:
+                # Iterate through the rows
+                for row in range(0, matrixdims[0]):
+                    # Iterate through the columns
+                    for col in range(0, matrixdims[1]):
+                        # The logo location is physically at (6, 11), logically at (0, 20)
+                        # Skip when we come across the logo location, as the ripple would look wrong
+                        if needslogohandling and row == 0 and col == 20:
                             continue
-                        if row == 6:
+
+                        if needslogohandling and row == 6:
                             if col != 11:
                                 continue
-                            else:
-                                # To account for logo placement
-                                for cirlce_centre_row, circle_centre_col, rad, colour in radiuses:
-                                    radius = math.sqrt(math.pow(cirlce_centre_row - row, 2) + math.pow(circle_centre_col - col, 2))
-                                    if rad >= radius >= rad - 1:
-                                        self._kerboard_grid.set_key_colour(0, 20, colour)
-                                        break
+
+                            # To account for logo placement
+                            for cirlce_centre_row, circle_centre_col, rad, colour in radiuses:
+                                radius = math.sqrt(math.pow(cirlce_centre_row - row, 2) + math.pow(circle_centre_col - col, 2))
+                                if rad >= radius >= rad - 1:
+                                    # Again, (0, 20) is the logical location of the logo led
+                                    self._keyboard_grid.set_key_colour(0, 20, colour)
+                                    break
                         else:
                             for cirlce_centre_row, circle_centre_col, rad, colour in radiuses:
                                 radius = math.sqrt(math.pow(cirlce_centre_row - row, 2) + math.pow(circle_centre_col - col, 2))
                                 if rad >= radius >= rad - 1:
-                                    self._kerboard_grid.set_key_colour(row, col, colour)
+                                    self._keyboard_grid.set_key_colour(row, col, colour)
                                     break
 
-                payload = self._kerboard_grid.get_total_binary()
+                # Set the colors on the device
+                payload = self._keyboard_grid.get_total_binary()
 
                 self._parent.set_rgb_matrix(payload)
                 self._parent.refresh_keyboard()
 
+            # Sleep until the next ripple refresh
             time.sleep(self._refresh_rate)
 
 
