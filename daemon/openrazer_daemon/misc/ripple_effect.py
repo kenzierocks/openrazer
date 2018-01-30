@@ -30,7 +30,9 @@ class RippleEffectThread(threading.Thread):
         self._shutdown = False
         self._active = False
 
-        self._keyboard_grid = KeyboardColour()
+        self._matrixdims = self._parent._parent.MATRIX_DIMS
+
+        self._keyboard_grid = KeyboardColour(self._matrixdims[0], self._matrixdims[1])
 
     @property
     def shutdown(self):
@@ -102,11 +104,13 @@ class RippleEffectThread(threading.Thread):
 
         # self._parent: RippleManager
         # self._parent._parent: The device class (e.g. RazerBlackWidowUltimate2013)
-        matrixdims = self._parent._parent.MATRIX_DIMS
-        needslogohandling = False
-        if matrixdims == [6, 22]:
+        logicalmatrixdims = self._matrixdims
+        if logicalmatrixdims == [6, 22]:
             needslogohandling = True
-            matrixdims[0] = matrixdims[0] + 1  # a virtual 7th row for logo handling
+            # a virtual 7th row for logo handling
+            logicalmatrixdims[0] = logicalmatrixdims[0] + 1
+        else:
+            needslogohandling = False
 
         # TODO time execution and then sleep for _refresh_rate - time_taken
         while not self._shutdown:
@@ -129,9 +133,9 @@ class RippleEffectThread(threading.Thread):
                     radiuses.append((key_row, key_col, now_diff.total_seconds() * 12, colour))
 
                 # Iterate through the rows
-                for row in range(0, matrixdims[0]):
+                for row in range(0, logicalmatrixdims[0]):
                     # Iterate through the columns
-                    for col in range(0, matrixdims[1]):
+                    for col in range(0, logicalmatrixdims[1]):
                         # The logo location is physically at (6, 11), logically at (0, 20)
                         # Skip when we come across the logo location, as the ripple would look wrong
                         if needslogohandling and row == 0 and col == 20:
